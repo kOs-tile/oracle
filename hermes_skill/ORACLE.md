@@ -272,7 +272,7 @@ ETHERSCAN_API_KEY=your_key    # Free at etherscan.io
 ## Quick Start
 
 ```bash
-git clone https://github.com/onurkavi/oracle
+git clone https://github.com/kOs-tile/oracle
 cd oracle
 cp .env.example .env
 docker-compose up
