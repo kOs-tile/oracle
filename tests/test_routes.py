@@ -16,6 +16,7 @@ from httpx import ASGITransport, AsyncClient
 from oracle.models import (
     CoinData,
     CryptoState,
+    DataProvenance,
     FearGreedCategory,
     FearGreedData,
     GasPrices,
@@ -308,6 +309,15 @@ class TestFormatter:
         prompt = format_world_state_prompt(world)
         assert "BTC" in prompt
         assert "67,000" in prompt or "67000" in prompt
+
+    def test_formatter_exposes_evidence_ledger(self):
+        from oracle.api.formatter import format_world_state_prompt
+        world = make_full_world_state()
+        prompt = format_world_state_prompt(world)
+        assert "EVIDENCE LEDGER" in prompt
+        assert "Trusted data: 75%" in prompt
+        assert "onchain      UNAVAILABLE" in prompt
+
 
     def test_format_world_state_summary_structure(self):
         from oracle.api.formatter import format_world_state_summary
