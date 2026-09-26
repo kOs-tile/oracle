@@ -21,7 +21,7 @@ import httpx
 from loguru import logger
 
 from oracle.config import get_settings
-from oracle.models import GasPrices, OnChainState
+from oracle.models import DataProvenance, GasPrices, OnChainState
 
 ETHERSCAN_BASE = "https://api.etherscan.io/api"
 
@@ -119,12 +119,18 @@ async def collect_onchain() -> OnChainState:
     settings = get_settings()
 
     if not settings.etherscan_api_key:
-        logger.info("[onchain] No Etherscan key — using simulated gas data")
+        logger.info("[onchain] No Etherscan key — returning explicitly simulated demo data")
         return OnChainState(
             gas=SIMULATED_GAS,
             network_congestion=_classify_congestion(SIMULATED_GAS.fast),
             last_block=SIMULATED_BLOCK,
             mempool_size_estimate=None,
+            provenance={
+                "gas": DataProvenance.SIMULATED,
+                "last_block": DataProvenance.SIMULATED,
+                "mempool_size_estimate": DataProvenance.UNAVAILABLE,
+            },
+            provenance_note="Demo fallback because ETHERSCAN_API_KEY is not configured.",
         )
 
     async with httpx.AsyncClient() as client:
@@ -139,13 +145,19 @@ async def collect_onchain() -> OnChainState:
         )
         gas, last_block, mempool = await asyncio.gather(gas_task, block_task, mempool_task)
 
-    # Fall back to simulated gas if fetch failed
-    gas = gas or SIMULATED_GAS
-
-    congestion = _classify_congestion(gas.fast)
+    # A configured live source that fails must fail closed. Never replace a
+    # failed real observation with synthetic data while preserving the same shape.
+    provenance = {
+        "gas": DataProvenance.REAL if gas is not None else DataProvenance.UNAVAILABLE,
+        "last_block": DataProvenance.REAL if last_block is not None else DataProvenance.UNAVAILABLE,
+        "mempool_size_estimate": (
+            DataProvenance.REAL if mempool is not None else DataProvenance.UNAVAILABLE
+        ),
+    }
+    congestion = _classify_congestion(gas.fast) if gas is not None else "unknown"
     logger.info(
-        f"[onchain] gas fast={gas.fast} gwei | congestion={congestion} | "
-        f"block={last_block} | mempool≈{mempool}"
+        f"[onchain] gas={gas.fast if gas else None} gwei | congestion={congestion} | "
+        f"block={last_block} | mempool≈{mempool} | provenance={provenance}"
     )
 
     return OnChainState(
@@ -153,4 +165,8 @@ async def collect_onchain() -> OnChainState:
         network_congestion=congestion,
         last_block=last_block,
         mempool_size_estimate=mempool,
+        provenance=provenance,
+        provenance_note=(
+            "Live Etherscan observations; unavailable fields remain unavailable."
+        ),
     )
