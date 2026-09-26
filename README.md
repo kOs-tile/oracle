@@ -464,4 +464,4 @@ python scripts/demo.py --live    # Connect to running ORACLE instance
 
 ## License
 
-MIT — built by [Onur Kavi](https://github.com/onurkavi) as part of his AI portfolio.
+MIT — built by [Onur Kavi](https://github.com/kOs-tile) as part of his AI portfolio.
