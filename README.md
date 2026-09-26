@@ -1,5 +1,8 @@
 # ORACLE
 
+> **Status — Legacy research prototype.** ORACLE explores agent world-state aggregation and prompt-ready context. Current KAVI work is moving these ideas toward explicit provenance (`REAL`, `CACHED`, `STALE`, `SIMULATED`, `UNAVAILABLE`) rather than treating fallback data as equivalent to live evidence.
+
+
 **Real-Time World State Engine for Hermes AI Agents**
 
 > *Your AI knows everything up to its training cutoff — and nothing after.*
@@ -93,7 +96,7 @@ One `GET /state/prompt` call gives your agent everything it needs to reason abou
 ### One-command Docker start
 
 ```bash
-git clone https://github.com/onurkavi/oracle
+git clone https://github.com/kOs-tile/oracle
 cd oracle
 cp .env.example .env
 # Optionally add your API keys to .env
