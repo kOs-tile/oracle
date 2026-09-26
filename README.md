@@ -1,6 +1,6 @@
 # ORACLE
 
-> **Status — Legacy research prototype.** ORACLE explores agent world-state aggregation and prompt-ready context. Current KAVI work is moving these ideas toward explicit provenance (`REAL`, `CACHED`, `STALE`, `SIMULATED`, `UNAVAILABLE`) rather than treating fallback data as equivalent to live evidence.
+> **Status — Research-active subsystem candidate.** ORACLE is being developed as a provenance-aware context ingestion layer for KAVI/Hermes. Agent-facing values now carry explicit truth semantics so simulated or unavailable data cannot silently masquerade as live observations.
 
 
 **Real-Time World State Engine for Hermes AI Agents**
@@ -8,6 +8,10 @@
 > *Your AI knows everything up to its training cutoff — and nothing after.*
 
 ---
+
+## Provenance contract
+
+ORACLE treats data origin as part of the payload, not hidden implementation detail. Agent consumers can distinguish `REAL`, `CACHED`, `STALE`, `SIMULATED`, and `UNAVAILABLE` observations. A configured live source that fails does not silently fall back to synthetic values.
 
 ## The Blind Agent Problem
 
