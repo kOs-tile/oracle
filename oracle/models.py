@@ -43,6 +43,23 @@ class DataProvenance(str, Enum):
     UNAVAILABLE = "unavailable"
 
 
+class DomainEvidence(BaseModel):
+    """Machine-readable trust envelope for one ORACLE domain."""
+
+    domain: str
+    provenance: DataProvenance = DataProvenance.UNAVAILABLE
+    source_status: SourceStatus = SourceStatus.PENDING
+    observed_at: Optional[datetime] = None
+    age_seconds: Optional[float] = Field(default=None, ge=0)
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    actionable: bool = False
+    note: Optional[str] = None
+
+    @field_serializer("observed_at")
+    def serialise_observed_at(self, dt: Optional[datetime]) -> Optional[str]:
+        return dt.isoformat() if dt else None
+
+
 class Sentiment(str, Enum):
     POSITIVE = "positive"
     NEGATIVE = "negative"
@@ -312,6 +329,10 @@ class WorldState(BaseModel):
     onchain: Optional[OnChainState] = None
 
     source_health: dict[str, SourceHealth] = Field(default_factory=dict)
+    evidence: dict[str, DomainEvidence] = Field(
+        default_factory=dict,
+        description="Per-domain evidence ledger used to gate agent-facing signals.",
+    )
 
     # ── Derived summary fields ─────────────────────────────────────────────
     overall_market_mood: str = Field(
@@ -324,19 +345,108 @@ class WorldState(BaseModel):
     )
     data_freshness_pct: float = Field(
         default=0.0,
-        description="Percentage of sources that are fresh (status=ok)",
+        description="Percentage of collectors whose operational status is OK.",
+    )
+    trusted_data_pct: float = Field(
+        default=0.0,
+        description="Percentage of domains currently safe to use as agent evidence.",
     )
 
     @field_serializer("generated_at")
     def serialise_dt(self, dt: datetime) -> str:
         return dt.isoformat()
 
+    def compute_evidence(self, now: Optional[datetime] = None) -> None:
+        """Build a fail-closed evidence ledger from data timestamps and source health."""
+        now = now or utc_now()
+        domains = {
+            "crypto": self.crypto,
+            "macro": self.macro,
+            "news": self.news,
+            "onchain": self.onchain,
+        }
+        evidence: dict[str, DomainEvidence] = {}
+
+        for name, state in domains.items():
+            health = self.source_health.get(name, SourceHealth(source=name))
+            observed_at = getattr(state, "updated_at", None) if state is not None else None
+            age_seconds: Optional[float] = None
+            if observed_at is not None:
+                if observed_at.tzinfo is None:
+                    observed_at = observed_at.replace(tzinfo=timezone.utc)
+                age_seconds = max(0.0, (now - observed_at).total_seconds())
+
+            provenance = DataProvenance.UNAVAILABLE
+            note: Optional[str] = None
+            confidence = 0.0
+
+            if state is not None:
+                if name == "onchain" and self.onchain is not None:
+                    field_states = list(self.onchain.provenance.values())
+                    if DataProvenance.SIMULATED in field_states:
+                        provenance = DataProvenance.SIMULATED
+                        note = self.onchain.provenance_note or "One or more on-chain observations are simulated."
+                    elif DataProvenance.STALE in field_states:
+                        provenance = DataProvenance.STALE
+                    elif DataProvenance.REAL in field_states:
+                        provenance = DataProvenance.REAL
+                    elif DataProvenance.CACHED in field_states:
+                        provenance = DataProvenance.CACHED
+                else:
+                    if health.status == SourceStatus.OK:
+                        provenance = DataProvenance.REAL
+                    elif health.status == SourceStatus.DEGRADED:
+                        provenance = DataProvenance.CACHED
+                        note = "Collector is degraded; serving the last successful cached observation."
+                    elif health.status == SourceStatus.STALE:
+                        provenance = DataProvenance.STALE
+                    elif health.status == SourceStatus.ERROR:
+                        provenance = DataProvenance.STALE if health.last_success else DataProvenance.UNAVAILABLE
+                    elif health.status == SourceStatus.PENDING:
+                        provenance = DataProvenance.CACHED if health.last_success else DataProvenance.UNAVAILABLE
+
+            confidence_by_provenance = {
+                DataProvenance.REAL: 1.0,
+                DataProvenance.CACHED: 0.65,
+                DataProvenance.STALE: 0.25,
+                DataProvenance.SIMULATED: 0.0,
+                DataProvenance.UNAVAILABLE: 0.0,
+            }
+            confidence = confidence_by_provenance[provenance]
+            if health.status == SourceStatus.ERROR:
+                confidence = min(confidence, 0.2)
+
+            actionable = provenance in {DataProvenance.REAL, DataProvenance.CACHED}
+            evidence[name] = DomainEvidence(
+                domain=name,
+                provenance=provenance,
+                source_status=health.status,
+                observed_at=observed_at,
+                age_seconds=round(age_seconds, 3) if age_seconds is not None else None,
+                confidence=confidence,
+                actionable=actionable,
+                note=note or health.last_error_message,
+            )
+
+        self.evidence = evidence
+        if evidence:
+            usable = sum(1 for item in evidence.values() if item.actionable)
+            self.trusted_data_pct = round(usable / len(evidence) * 100, 1)
+        else:
+            self.trusted_data_pct = 0.0
+
     def compute_summary(self) -> None:
-        """Derive overall_market_mood and key_signals from domain data."""
+        """Derive agent-facing signals only from evidence marked actionable."""
+        self.compute_evidence()
+        self.overall_market_mood = "unknown"
         signals: list[str] = []
 
+        def usable(domain: str) -> bool:
+            record = self.evidence.get(domain)
+            return bool(record and record.actionable)
+
         # Fear & Greed mood
-        if self.crypto and self.crypto.fear_greed:
+        if usable("crypto") and self.crypto and self.crypto.fear_greed:
             fg = self.crypto.fear_greed
             cat = fg.category.value
             signals.append(f"Fear & Greed: {fg.value}/100 ({cat})")
@@ -351,8 +461,7 @@ class WorldState(BaseModel):
             else:
                 self.overall_market_mood = "euphoric"
 
-        # BTC signal
-        if self.crypto:
+        if usable("crypto") and self.crypto:
             btc = self.crypto.get_coin("btc")
             if btc and btc.change_24h_pct is not None:
                 direction = "▲" if btc.change_24h_pct >= 0 else "▼"
@@ -361,22 +470,28 @@ class WorldState(BaseModel):
                     f"@ ${btc.price_usd:,.0f}"
                 )
 
-        # VIX signal
-        if self.macro and "^VIX" in self.macro.macro:
+        if usable("macro") and self.macro and "^VIX" in self.macro.macro:
             vix = self.macro.macro["^VIX"]
             if vix.price:
                 label = "elevated" if vix.price > 20 else "low"
                 signals.append(f"VIX {vix.price:.1f} ({label} volatility)")
 
-        # Gas signal
-        if self.onchain and self.onchain.gas:
+        gas_provenance = (
+            self.onchain.provenance.get("gas", DataProvenance.UNAVAILABLE)
+            if self.onchain else DataProvenance.UNAVAILABLE
+        )
+        if (
+            usable("onchain")
+            and self.onchain
+            and self.onchain.gas
+            and gas_provenance in {DataProvenance.REAL, DataProvenance.CACHED}
+        ):
             signals.append(
                 f"ETH gas: {self.onchain.gas.fast:.0f} gwei (fast) — "
                 f"{self.onchain.network_congestion} congestion"
             )
 
-        # News sentiment signal
-        if self.news:
+        if usable("news") and self.news:
             total = (
                 self.news.positive_count
                 + self.news.negative_count
@@ -392,8 +507,9 @@ class WorldState(BaseModel):
 
         self.key_signals = signals[:5]
 
-        # Data freshness
         health_values = list(self.source_health.values())
         if health_values:
             ok_count = sum(1 for h in health_values if h.status == SourceStatus.OK)
             self.data_freshness_pct = round(ok_count / len(health_values) * 100, 1)
+        else:
+            self.data_freshness_pct = 0.0
