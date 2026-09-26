@@ -205,6 +205,29 @@ class TestStateEndpoint:
         assert world.overall_market_mood == "bullish"
 
 
+    def test_evidence_digest_is_deterministic(self):
+        from oracle.api.formatter import evidence_ledger_digest
+
+        first = make_full_world_state()
+        second = make_full_world_state()
+        first.generated_at = second.generated_at
+
+        assert evidence_ledger_digest(first) == evidence_ledger_digest(second)
+        assert len(evidence_ledger_digest(first)) == 64
+
+    def test_evidence_digest_changes_when_truth_status_changes(self):
+        from oracle.api.formatter import evidence_ledger_digest
+
+        world = make_full_world_state()
+        before = evidence_ledger_digest(world)
+        assert world.onchain is not None
+        world.onchain.provenance["gas"] = DataProvenance.SIMULATED
+        world.compute_summary()
+        after = evidence_ledger_digest(world)
+
+        assert before != after
+
+
 # ── /state/{domain} tests ─────────────────────────────────────────────────────
 
 
