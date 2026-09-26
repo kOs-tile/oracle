@@ -353,6 +353,30 @@ class TestOnChainCollector:
         assert isinstance(state, OnChainState)
         assert state.gas is not None
         assert state.gas.slow < state.gas.standard < state.gas.fast
+        from oracle.models import DataProvenance
+        assert state.provenance["gas"] == DataProvenance.SIMULATED
+        assert state.provenance["last_block"] == DataProvenance.SIMULATED
+        assert state.provenance["mempool_size_estimate"] == DataProvenance.UNAVAILABLE
+
+    @pytest.mark.asyncio
+    async def test_collect_onchain_live_failure_does_not_fall_back_to_simulation(self):
+        from oracle.collectors.onchain import collect_onchain
+        from oracle.models import DataProvenance
+
+        with (
+            patch("oracle.collectors.onchain.get_settings") as mock_settings,
+            patch("oracle.collectors.onchain._fetch_gas_oracle", return_value=None),
+            patch("oracle.collectors.onchain._fetch_latest_block", return_value=None),
+            patch("oracle.collectors.onchain._fetch_mempool_estimate", return_value=None),
+        ):
+            mock_settings.return_value.etherscan_api_key = "test_key"
+            state = await collect_onchain()
+
+        assert state.gas is None
+        assert state.last_block is None
+        assert state.network_congestion == "unknown"
+        assert state.provenance["gas"] == DataProvenance.UNAVAILABLE
+        assert state.provenance["last_block"] == DataProvenance.UNAVAILABLE
 
     @pytest.mark.asyncio
     async def test_fetch_gas_oracle_success(self):
