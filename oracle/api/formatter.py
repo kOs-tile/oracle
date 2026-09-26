@@ -16,6 +16,7 @@ from typing import Optional
 
 from oracle.models import (
     CryptoState,
+    DataProvenance,
     MacroState,
     NewsState,
     OnChainState,
@@ -165,9 +166,13 @@ def format_onchain_section(onchain: Optional[OnChainState]) -> str:
     lines = [f"{'ETHEREUM ON-CHAIN':^60}", _DIVIDER]
     lines.append(f"  Network Congestion : {onchain.network_congestion.upper()}")
 
+    def provenance_label(field: str) -> str:
+        state = onchain.provenance.get(field, DataProvenance.UNAVAILABLE)
+        return f"[{state.value.upper()}]"
+
     if onchain.gas:
         g = onchain.gas
-        lines.append(f"  Gas (Gwei):")
+        lines.append(f"  Gas (Gwei) {provenance_label('gas')}:")
         lines.append(f"    Slow             : {g.slow:.1f}")
         lines.append(f"    Standard         : {g.standard:.1f}")
         lines.append(f"    Fast             : {g.fast:.1f}")
@@ -175,9 +180,17 @@ def format_onchain_section(onchain: Optional[OnChainState]) -> str:
             lines.append(f"    Base Fee         : {g.base_fee:.2f}")
 
     if onchain.last_block:
-        lines.append(f"  Latest Block       : #{onchain.last_block:,}")
+        lines.append(
+            f"  Latest Block       : #{onchain.last_block:,} "
+            f"{provenance_label('last_block')}"
+        )
     if onchain.mempool_size_estimate:
-        lines.append(f"  Mempool (est.)     : {onchain.mempool_size_estimate:,} pending txs")
+        lines.append(
+            f"  Mempool (est.)     : {onchain.mempool_size_estimate:,} pending txs "
+            f"{provenance_label('mempool_size_estimate')}"
+        )
+    if onchain.provenance_note:
+        lines.append(f"  Provenance note    : {onchain.provenance_note}")
 
     return "\n".join(lines) + "\n"
 
@@ -274,6 +287,10 @@ def format_world_state_summary(world: WorldState) -> dict:
         },
         "vix": vix.price if vix else None,
         "eth_gas_fast": world.onchain.gas.fast if world.onchain and world.onchain.gas else None,
+        "onchain_provenance": (
+            {k: v.value for k, v in world.onchain.provenance.items()}
+            if world.onchain else {}
+        ),
         "news_sentiment": world.news.dominant_sentiment.value if world.news else None,
         "top_crypto_headlines": [
             h.title for h in (world.news.crypto_headlines[:3] if world.news else [])
