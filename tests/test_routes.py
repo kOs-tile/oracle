@@ -209,8 +209,7 @@ class TestStateEndpoint:
         from oracle.api.formatter import evidence_ledger_digest
 
         first = make_full_world_state()
-        second = make_full_world_state()
-        first.generated_at = second.generated_at
+        second = first.model_copy(deep=True)
 
         assert evidence_ledger_digest(first) == evidence_ledger_digest(second)
         assert len(evidence_ledger_digest(first)) == 64
