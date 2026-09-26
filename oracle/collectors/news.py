@@ -247,12 +247,6 @@ async def fetch_rss_fallback(
 
 # ── Trending Topics ───────────────────────────────────────────────────────────
 
-SIMULATED_TRENDING = [
-    "#Bitcoin", "#Ethereum", "#AI", "#DeFi", "#Web3",
-    "#Crypto", "#NFT", "#NVDA", "#Fed", "#CryptoTwitter",
-]
-
-
 def _extract_trending(headlines: list[NewsItem]) -> list[str]:
     """Extract pseudo-trending topics from headline keywords."""
     from collections import Counter
@@ -271,8 +265,7 @@ def _extract_trending(headlines: list[NewsItem]) -> list[str]:
             if w.lower() not in STOP_WORDS and len(w) > 2:
                 word_counter[w.upper()] += 1
 
-    top = [w for w, _ in word_counter.most_common(10)]
-    return top if top else SIMULATED_TRENDING[:5]
+    return [w for w, _ in word_counter.most_common(10)]
 
 
 # ── Main Entrypoint ───────────────────────────────────────────────────────────
