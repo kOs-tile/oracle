@@ -33,6 +33,16 @@ class SourceStatus(str, Enum):
     PENDING = "pending"
 
 
+class DataProvenance(str, Enum):
+    """Truth status for an individual observation supplied to an agent."""
+
+    REAL = "real"
+    CACHED = "cached"
+    STALE = "stale"
+    SIMULATED = "simulated"
+    UNAVAILABLE = "unavailable"
+
+
 class Sentiment(str, Enum):
     POSITIVE = "positive"
     NEGATIVE = "negative"
@@ -255,6 +265,15 @@ class OnChainState(BaseModel):
         description="'low', 'moderate', 'high', 'congested'",
     )
     last_block: Optional[int] = None
+    provenance: dict[str, DataProvenance] = Field(
+        default_factory=lambda: {
+            "gas": DataProvenance.UNAVAILABLE,
+            "last_block": DataProvenance.UNAVAILABLE,
+            "mempool_size_estimate": DataProvenance.UNAVAILABLE,
+        },
+        description="Per-field truth status. Agent consumers must not treat simulated values as observations.",
+    )
+    provenance_note: Optional[str] = None
     updated_at: datetime = Field(default_factory=utc_now)
 
     @field_serializer("updated_at")
