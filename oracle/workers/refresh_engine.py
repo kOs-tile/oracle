@@ -74,10 +74,43 @@ class RefreshEngine:
 
     # ── Health accessors ──────────────────────────────────────────────────────
 
+    def _stale_after_seconds(self, source: str) -> float:
+        interval_by_source = {
+            "crypto": self._settings.refresh_interval_crypto,
+            "macro": self._settings.refresh_interval_macro,
+            "news": self._settings.refresh_interval_news,
+            "onchain": self._settings.refresh_interval_onchain,
+        }
+        interval = interval_by_source[source]
+        return interval * self._settings.stale_threshold_multiplier
+
+    def _refresh_staleness(self, now: Optional[datetime] = None) -> None:
+        """Turn old successful/degraded sources into explicit STALE evidence."""
+        now = now or datetime.now(timezone.utc)
+        for source, health in self._health.items():
+            if health.last_success is None:
+                continue
+            if health.status not in {SourceStatus.OK, SourceStatus.DEGRADED, SourceStatus.STALE}:
+                continue
+
+            last_success = health.last_success
+            if last_success.tzinfo is None:
+                last_success = last_success.replace(tzinfo=timezone.utc)
+            age_seconds = max(0.0, (now - last_success).total_seconds())
+
+            if age_seconds > self._stale_after_seconds(source):
+                health.status = SourceStatus.STALE
+            elif health.status == SourceStatus.STALE and health.consecutive_failures == 0:
+                # A source can recover from STALE without inventing a new success;
+                # this primarily makes deterministic tests/time injection reversible.
+                health.status = SourceStatus.OK
+
     def get_health(self, source: str) -> Optional[SourceHealth]:
+        self._refresh_staleness()
         return self._health.get(source)
 
     def get_all_health(self) -> dict[str, SourceHealth]:
+        self._refresh_staleness()
         return dict(self._health)
 
     # ── Worker wrapper ────────────────────────────────────────────────────────
