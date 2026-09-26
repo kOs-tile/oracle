@@ -195,6 +195,31 @@ def format_onchain_section(onchain: Optional[OnChainState]) -> str:
     return "\n".join(lines) + "\n"
 
 
+
+def format_evidence_section(world: WorldState) -> str:
+    """Render the machine-readable evidence ledger in a human-scannable form."""
+    lines = [f"{'EVIDENCE LEDGER':^60}", _DIVIDER]
+    for name in ("crypto", "macro", "news", "onchain"):
+        record = world.evidence.get(name)
+        if record is None:
+            lines.append(f"  ? {name:<12} UNAVAILABLE")
+            continue
+        age = (
+            f"{record.age_seconds:.0f}s old"
+            if record.age_seconds is not None
+            else "age unknown"
+        )
+        action = "ACTIONABLE" if record.actionable else "DO NOT ACT"
+        lines.append(
+            f"  {name:<12} {record.provenance.value.upper():<11} "
+            f"conf={record.confidence:.2f}  {age:<12}  {action}"
+        )
+        if record.note:
+            lines.append(f"    note: {record.note}")
+    lines.append(f"\n  Trusted domains: {world.trusted_data_pct:.0f}%")
+    return "\n".join(lines) + "\n"
+
+
 def format_health_section(world: WorldState) -> str:
     lines = [f"{'DATA SOURCE HEALTH':^60}", _DIVIDER]
     status_icons = {
@@ -239,7 +264,8 @@ def format_world_state_prompt(world: WorldState) -> str:
         f"╚{border}╝",
         "",
         f"  Mood: {world.overall_market_mood.upper()}  |  "
-        f"Freshness: {world.data_freshness_pct:.0f}%",
+        f"Freshness: {world.data_freshness_pct:.0f}%  |  "
+        f"Trusted data: {world.trusted_data_pct:.0f}%",
         "",
     ]
 
@@ -250,6 +276,7 @@ def format_world_state_prompt(world: WorldState) -> str:
         sections.append("")
 
     sections.append(_DIVIDER)
+    sections.append(format_evidence_section(world))
     sections.append(format_crypto_section(world.crypto))
     sections.append(format_macro_section(world.macro))
     sections.append(format_news_section(world.news))
@@ -272,6 +299,11 @@ def format_world_state_summary(world: WorldState) -> dict:
         "timestamp": world.generated_at.isoformat(),
         "mood": world.overall_market_mood,
         "freshness_pct": world.data_freshness_pct,
+        "trusted_data_pct": world.trusted_data_pct,
+        "evidence": {
+            name: record.model_dump(mode="json")
+            for name, record in world.evidence.items()
+        },
         "key_signals": world.key_signals,
         "btc": {
             "price": btc.price_usd if btc else None,
