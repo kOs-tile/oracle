@@ -11,6 +11,8 @@ dict for programmatic consumption.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -286,6 +288,20 @@ def format_world_state_prompt(world: WorldState) -> str:
     return "\n".join(sections)
 
 
+
+def evidence_ledger_digest(world: WorldState) -> str:
+    """Return a canonical digest for the agent-facing evidence ledger."""
+    payload = {
+        "trusted_data_pct": world.trusted_data_pct,
+        "domains": {
+            name: record.model_dump(mode="json")
+            for name, record in sorted(world.evidence.items())
+        },
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def format_world_state_summary(world: WorldState) -> dict:
     """
     Returns a compact JSON-serialisable summary dict for programmatic use
@@ -300,6 +316,7 @@ def format_world_state_summary(world: WorldState) -> dict:
         "mood": world.overall_market_mood,
         "freshness_pct": world.data_freshness_pct,
         "trusted_data_pct": world.trusted_data_pct,
+        "evidence_digest": evidence_ledger_digest(world),
         "evidence": {
             name: record.model_dump(mode="json")
             for name, record in world.evidence.items()
