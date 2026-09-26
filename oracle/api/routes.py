@@ -25,7 +25,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from loguru import logger
 
-from oracle.api.formatter import format_world_state_prompt, format_world_state_summary
+from oracle.api.formatter import (
+    evidence_ledger_digest,
+    format_world_state_prompt,
+    format_world_state_summary,
+)
 from oracle.cache.redis_store import get_store
 from oracle.config import get_settings
 from oracle.models import (
@@ -165,6 +169,7 @@ def create_app() -> FastAPI:
         return {
             "timestamp": world.generated_at.isoformat(),
             "trusted_data_pct": world.trusted_data_pct,
+            "evidence_digest": evidence_ledger_digest(world),
             "domains": {
                 name: record.model_dump(mode="json")
                 for name, record in world.evidence.items()
