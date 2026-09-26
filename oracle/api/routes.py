@@ -6,6 +6,7 @@ Endpoints:
   GET  /state/{domain}     — domain-specific snapshot (crypto|macro|news|onchain)
   GET  /state/prompt       — WorldState as a Hermes-ready context string
   GET  /state/summary      — compact summary dict
+  GET  /state/evidence     — machine-readable domain evidence ledger
   POST /state/refresh/{source} — manually trigger a source refresh
   GET  /health             — service + data-source health check
   WS   /stream             — WebSocket push stream (pushes every N seconds)
@@ -75,9 +76,9 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="ORACLE",
         description=(
-            "Real-time World State Engine for Hermes AI Agents. "
-            "Aggregates crypto prices, macro indicators, news headlines, "
-            "and on-chain metrics into a single structured context bundle."
+            "Evidence-aware world-state engine for AI agents. "
+            "Aggregates current data while exposing provenance, freshness, "
+            "confidence, and actionability as first-class machine-readable fields."
         ),
         version="1.0.0",
         docs_url="/docs",
@@ -149,6 +150,26 @@ def create_app() -> FastAPI:
     async def get_state_summary() -> dict:
         world = await _build_world_state()
         return format_world_state_summary(world)
+
+    @app.get(
+        "/state/evidence",
+        summary="Evidence ledger",
+        description=(
+            "Returns per-domain provenance, source status, age, confidence, "
+            "and whether the current observation is safe for agent action."
+        ),
+        tags=["state"],
+    )
+    async def get_state_evidence() -> dict:
+        world = await _build_world_state()
+        return {
+            "timestamp": world.generated_at.isoformat(),
+            "trusted_data_pct": world.trusted_data_pct,
+            "domains": {
+                name: record.model_dump(mode="json")
+                for name, record in world.evidence.items()
+            },
+        }
 
     @app.get(
         "/state/{domain}",
