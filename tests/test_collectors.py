@@ -422,3 +422,9 @@ class TestOnChainCollector:
         assert _classify_congestion(35) == "moderate"
         assert _classify_congestion(75) == "high"
         assert _classify_congestion(150) == "congested"
+
+
+def test_extract_trending_empty_is_empty():
+    from oracle.collectors.news import _extract_trending
+
+    assert _extract_trending([]) == []
