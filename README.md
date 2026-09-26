@@ -3,7 +3,7 @@
 > **Status — Research-active subsystem candidate.** ORACLE is being developed as a provenance-aware context ingestion layer for KAVI/Hermes. Agent-facing values now carry explicit truth semantics so simulated or unavailable data cannot silently masquerade as live observations.
 
 
-**Real-Time World State Engine for Hermes AI Agents**
+**Evidence-aware world state for AI agents**
 
 > *Your AI knows everything up to its training cutoff — and nothing after.*
 
@@ -23,7 +23,7 @@ It can reason about DeFi protocols. It can't tell you if gas is 12 or 120 gwei.
 
 This is the **Blind Agent Problem** — and it silently corrupts every market analysis, trading recommendation, and news summary your agents produce. They confidently answer questions about a world that no longer exists.
 
-**ORACLE solves this.** It's a standalone FastAPI service that continuously monitors multiple data streams and exposes a single `/state` endpoint returning a rich, structured snapshot of the world *right now* — ready for direct injection into Hermes agent context.
+ORACLE continuously monitors multiple data streams and exposes structured state together with machine-readable provenance, freshness, confidence, and actionability. The core question is not only *what value did we fetch?* but *is this observation safe for an agent to act on?*
 
 One `GET /state/prompt` call gives your agent everything it needs to reason about current market conditions, breaking news, on-chain activity, and macro sentiment — in a single formatted context block.
 
@@ -51,7 +51,7 @@ One `GET /state/prompt` call gives your agent everything it needs to reason abou
 │  GET /state          ──► Full WorldState JSON                   │
 │  GET /state/{domain} ──► crypto | macro | news | onchain        │
 │  GET /state/prompt   ──► Hermes-ready context string            │
-│  GET /state/summary  ──► Compact signal summary                 │
+│  GET /state/summary  ──► Compact trusted signal summary         │\n│  GET /state/evidence ──► Provenance / age / actionability       │
 │  GET /health         ──► Source health + latencies              │
 │  WS  /stream         ──► Real-time push updates                 │
 │                                                                 │
@@ -469,3 +469,10 @@ python scripts/demo.py --live    # Connect to running ORACLE instance
 ## License
 
 MIT — built by [Onur Kavi](https://github.com/kOs-tile) as part of his AI portfolio.
+
+
+## Evidence ledger
+
+`GET /state/evidence` returns per-domain `provenance`, `source_status`, observation age, confidence, and `actionable`. Source health is evaluated at read time, so an old last-success timestamp crosses into `STALE` even if no new collector exception has occurred. Stale, simulated, or unavailable domains do not contribute agent-facing key signals.
+
+Validation gates and the primary **false-actionable rate** metric are defined in [`docs/VALIDATION.md`](docs/VALIDATION.md).
