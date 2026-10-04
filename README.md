@@ -476,3 +476,5 @@ MIT — built by [Onur Kavi](https://github.com/kOs-tile) as part of his AI port
 `GET /state/evidence` returns per-domain `provenance`, `source_status`, observation age, confidence, and `actionable`. Source health is evaluated at read time, so an old last-success timestamp crosses into `STALE` even if no new collector exception has occurred. Stale, simulated, or unavailable domains do not contribute agent-facing key signals.
 
 Validation gates and the primary **false-actionable rate** metric are defined in [`docs/VALIDATION.md`](docs/VALIDATION.md).
+
+Current regression evidence verifies that stale source health produces non-actionable world evidence and that the evidence-ledger digest changes when truth status changes. The broader deterministic false-actionable corpus remains planned and is not yet a completed benchmark.
