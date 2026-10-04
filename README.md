@@ -477,4 +477,4 @@ MIT — built by [Onur Kavi](https://github.com/kOs-tile) as part of his AI port
 
 Validation gates and the primary **false-actionable rate** metric are defined in [`docs/VALIDATION.md`](docs/VALIDATION.md).
 
-Current regression evidence verifies that stale source health produces non-actionable world evidence and that the evidence-ledger digest changes when truth status changes. The broader deterministic false-actionable corpus remains planned and is not yet a completed benchmark.
+Current regression evidence now includes an executable **18-case false-actionable corpus** across OK, DEGRADED, STALE, ERROR, PENDING, missing-state, cached, simulated, and unavailable conditions. The recorded CI checkpoint has **0 false-actionable outcomes across 11 unsafe cases** and **0 false-non-actionable outcomes across 7 safe cases**. This validates the current evidence/actionability policy on the deterministic corpus; it is not a live-source accuracy or uptime claim.
