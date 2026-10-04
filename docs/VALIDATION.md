@@ -10,9 +10,9 @@ simulated, or unavailable evidence.
 when the evidence should have been stale, simulated, unavailable, or otherwise
 outside policy.
 
-Target for the deterministic benchmark: **0 false-actionable observations**.
+Target for the planned deterministic benchmark: **0 false-actionable observations**.
 
-## Benchmark corpus v0.1
+## Planned benchmark corpus v0.1
 
 Build a versioned fixture corpus covering:
 
@@ -38,6 +38,18 @@ Build a versioned fixture corpus covering:
 - age-boundary correctness
 - recovery correctness
 - API/prompt consistency
+
+## Current regression evidence
+
+The current test suite already proves several contract-level properties:
+
+- source health that crosses the age threshold is marked `STALE`;
+- stale domain evidence is emitted with `actionable=false`;
+- stale evidence carries reduced confidence;
+- evidence-ledger fingerprints are deterministic for unchanged truth state;
+- changing a domain truth status changes the evidence digest.
+
+These are regression checks for the current implementation. They do not yet constitute the planned versioned false-actionable benchmark corpus above.
 
 ## Exit gate
 
