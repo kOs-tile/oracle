@@ -14,6 +14,8 @@ Endpoints:
 
 from __future__ import annotations
 
+import os
+
 import asyncio
 import json
 from contextlib import asynccontextmanager
@@ -90,10 +92,12 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Public cross-origin reads remain anonymous; configure trusted origins for cookies.
+    cors_allowed = [origin.strip() for origin in os.getenv("KAVI_CORS_ORIGINS", "").split(",") if origin.strip() and origin.strip() != "*"]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
+        allow_origins=cors_allowed or ["*"],
+        allow_credentials=bool(cors_allowed),
         allow_methods=["*"],
         allow_headers=["*"],
     )
